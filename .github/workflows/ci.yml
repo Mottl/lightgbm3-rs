@@ -1,0 +1,54 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Rust ${{ matrix.os }} ${{ matrix.rust }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: [stable]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy
+      - name: Build for Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install cmake libomp
+          cargo build --features=openmp --features=polars
+      - name: Build for Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libclang-dev libc++-dev gcc-multilib
+          cargo build --features=openmp --features=polars
+      - name: Build for Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          cargo build --features=openmp --features=polars
+      - name: Run tests
+        run: cargo test --features=openmp --features=polars
+        continue-on-error: ${{ matrix.rust == 'nightly' }}
+      - name: Run Clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --features=openmp --features=polars -- --no-deps
+  format_check:
+    name: Run Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt
+      - run: cargo fmt -- --check
