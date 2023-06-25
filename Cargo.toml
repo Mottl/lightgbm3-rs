@@ -6,6 +6,9 @@ authors = ["Dmitry Mottl <dmitry.mottl@gmail.com>", "vaaaaanquish <6syun9@gmail.
 license = "MIT"
 repository = "https://github.com/Mottl/lightgbm3-rs"
 description = "Rust bindings for LightGBM library"
+documentation = "https://docs.rs/lightgbm3/"
+keywords = ["lightgbm", "machine-learning", "gradient-boosting"]
+categories = ["api-bindings"]
 readme = "README.md"
 exclude = [".gitignore", ".github", ".gitmodules", "examples", "benches", "lightgbm3-sys"]
 

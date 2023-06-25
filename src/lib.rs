@@ -30,7 +30,7 @@
 //! bst.save_file("path/to/model.lgb").unwrap();
 //! ```
 //!
-//! ### Evaluation:
+//! ### Inference:
 //! ```no_run
 //! use lightgbm3::{Dataset, Booster};
 //!

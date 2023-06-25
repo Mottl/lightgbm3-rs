@@ -1,10 +1,9 @@
-extern crate bindgen;
-extern crate cmake;
-
 use cmake::Config;
-use std::env;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 fn main() {
     let target = env::var("TARGET").unwrap();
@@ -77,9 +76,9 @@ fn main() {
             // If it fails to compile in MacOS, try:
             // `brew install libomp`
             // `brew link --force libomp`
-            #[cfg(all(target_arch = "x86_64", target_os="macos"))]
+            #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
             println!("cargo:rustc-link-search=/usr/local/opt/libomp/lib");
-            #[cfg(all(target_arch = "aarch64", target_os="macos"))]
+            #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
             println!("cargo:rustc-link-search=/opt/homebrew/opt/libomp/lib");
         } else if target.contains("linux") {
             println!("cargo:rustc-link-lib=dylib=gomp");

@@ -1,29 +1,32 @@
-# lightgbm3-rs - Rust bindings for LightGBM
+# lightgbm3 — Rust bindings for LightGBM
+[![Crates.io](https://img.shields.io/crates/v/lightgbm3.svg)](https://crates.io/crates/lightgbm3)
+[![Docs.rs](https://docs.rs/lightgbm3/badge.svg)](https://docs.rs/lightgbm3/)
 [![build](https://github.com/Mottl/lightgbm3-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Mottl/lightgbm3-rs/actions)
 
-**`lightgbm3-rs`** is based on [`lightgbm-rs`](https://github.com/vaaaaanquish/lightgbm-rs)
+**`lightgbm3`** is based on [`lightgbm`](https://github.com/vaaaaanquish/lightgbm-rs)
 (which is unsupported by now), but it is not back-compatible with it.
 
 ## Installation
 ```shell
-cargo add --git https://github.com/Mottl/lightgbm3-rs.git lightgbm3
+cargo add lightgbm3
 ```
 
-Since `lightgbm3` compiles `LightGBM`, you also need to install development libraries:
+Since `lightgbm3` compiles `LightGBM` from source, you also need to install development libraries:
 
 #### for Linux:
 ```
 apt install -y cmake clang libclang-dev libc++-dev gcc-multilib
 ```
 
-#### for Mac (only if you choose to compile with `openmp` feature):
+#### for Mac:
 ```
-brew install cmake libomp
+brew install cmake
+brew install libomp # only required if you compile with "openmp" feature
 ```
 
 ### for Windows
 1. Install CMake and VS Build Tools.
-2. Install LLVM and set an environment variable `LIBCLANG_PATH` to PATH_TO_LLVM_BINARY (example: `C:\Program Files\LLVM\bin`)
+2. Install LLVM and set `LIBCLANG_PATH` environment variable (i.e. `C:\Program Files\LLVM\bin`)
 
 Please see below for details.
 
@@ -89,7 +92,7 @@ git clone --recursive https://github.com/Mottl/lightgbm3-rs.git
 ```
 
 ## Thanks
-Great respect to [vaaaaanquish](https://github.com/vaaaaanquish) for the LightGBM rust package, which, unfortunately
+Great respect to [vaaaaanquish](https://github.com/vaaaaanquish) for the LightGBM Rust package, which unfortunately
 no longer supported.
 
 Much reference was made to implementation and documentation. Thanks.
