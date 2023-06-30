@@ -16,8 +16,9 @@ pub struct Booster {
     n_classes: i32,
 }
 
-// Prediction type
-// <https://lightgbm.readthedocs.io/en/latest/C-API.html#c.LGBM_BoosterPredictForMat>
+/// Prediction type
+///
+/// <https://lightgbm.readthedocs.io/en/latest/C-API.html#c.LGBM_BoosterPredictForMat>
 enum PredictType {
     Normal,
     RawScore,
@@ -143,7 +144,7 @@ impl Booster {
         self.n_features
     }
 
-    /// Get the number of iterations.
+    /// Get the number of iterations in the booster.
     pub fn num_iterations(&self) -> i32 {
         self.n_iterations
     }
@@ -153,7 +154,7 @@ impl Booster {
         self.max_iterations
     }
 
-    /// Sets the the maximum number of iterations for prediction
+    /// Sets the the maximum number of iterations for prediction.
     pub fn set_max_iterations(&mut self, max_iterations: i32) -> Result<()> {
         if max_iterations > self.n_iterations {
             return Err(Error::new(format!(

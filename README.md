@@ -62,7 +62,7 @@ bst.save_file("path/to/model.lgb").unwrap();
 use lightgbm3::{Dataset, Booster};
 
 let bst = Booster::from_file("path/to/model.lgb").unwrap();
-let features = vec![1.0, 2.0, 33.0, -5.0];
+let features = vec![1.0, 2.0, -5.0];
 let n_features = features.len();
 let y_pred = bst.predict(&features, n_features as i32, true).unwrap()[0];
 ```

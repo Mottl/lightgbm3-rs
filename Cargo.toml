@@ -8,7 +8,7 @@ repository = "https://github.com/Mottl/lightgbm3-rs"
 description = "Rust bindings for LightGBM library"
 documentation = "https://docs.rs/lightgbm3/"
 keywords = ["lightgbm", "machine-learning", "gradient-boosting"]
-categories = ["api-bindings"]
+categories = ["api-bindings", "science"]
 readme = "README.md"
 exclude = [".gitignore", ".github", ".gitmodules", "examples", "benches", "lightgbm3-sys"]
 

@@ -35,7 +35,7 @@
 //! use lightgbm3::{Dataset, Booster};
 //!
 //! let bst = Booster::from_file("path/to/model.lgb").unwrap();
-//! let features = vec![1.0, 2.0, 33.0, -5.0];
+//! let features = vec![1.0, 2.0, -5.0];
 //! let n_features = features.len();
 //! let y_pred = bst.predict(&features, n_features as i32, true).unwrap()[0];
 //! ```
@@ -54,7 +54,7 @@ pub use booster::{Booster, ImportanceType};
 pub use dataset::Dataset;
 pub use error::{Error, Result};
 
-/// Get the index of the element in a slice with the maximum value
+/// Get index of the element in a slice with the maximum value
 pub fn argmax<T: PartialOrd>(xs: &[T]) -> usize {
     if xs.len() == 1 {
         0
