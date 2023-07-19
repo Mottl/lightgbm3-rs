@@ -64,7 +64,7 @@ use lightgbm3::{Dataset, Booster};
 let bst = Booster::from_file("path/to/model.lgb").unwrap();
 let features = vec![1.0, 2.0, -5.0];
 let n_features = features.len();
-let y_pred = bst.predict(&features, n_features as i32, true).unwrap()[0];
+let y_pred = bst.predict_with_params(&features, n_features as i32, true, "num_threads=1").unwrap()[0];
 ```
 
 Look in the [`./examples/`](https://github.com/Mottl/lightgbm3-rs/blob/main/examples/) folder for more details:

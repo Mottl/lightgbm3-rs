@@ -230,6 +230,7 @@ impl Booster {
         n_features: i32,
         is_row_major: bool,
         predict_type: PredictType,
+        parameters: Option<&str>,
     ) -> Result<Vec<f64>> {
         if self.n_features <= 0 {
             return Err(Error::new("n_features should be greater than 0"));
@@ -252,7 +253,10 @@ impl Booster {
             )));
         }
         let n_rows = flat_x.len() / n_features as usize;
-        let params = CString::new("").unwrap();
+        let params_cstring = parameters
+            .map(|s| CString::new(s))
+            .unwrap_or(CString::new(""))
+            .unwrap();
         let mut out_length: c_longlong = 0;
 
         let out_result: Vec<f64> = vec![Default::default(); n_rows * self.n_classes as usize];
@@ -266,7 +270,7 @@ impl Booster {
             predict_type.into(),                      // predict_type
             0_i32,                                    // start_iteration
             self.max_iterations,                      // num_iteration, <= 0 means no limit
-            params.as_ptr() as *const c_char,
+            params_cstring.as_ptr() as *const c_char,
             &mut out_length,
             out_result.as_ptr() as *mut c_double
         ))?;
@@ -282,7 +286,31 @@ impl Booster {
         n_features: i32,
         is_row_major: bool,
     ) -> Result<Vec<f64>> {
-        self.real_predict(flat_x, n_features, is_row_major, PredictType::Normal)
+        self.real_predict(flat_x, n_features, is_row_major, PredictType::Normal, None)
+    }
+
+    /// Get predictions given `&[f32]` or `&[f64]` slice of features. The resulting vector
+    /// will have the size of `n_rows` by `n_classes`.
+    ///
+    /// Example:
+    /// ```compile_fail
+    /// use serde_json::json;
+    /// let y_pred = bst.predict_with_params(&xs, 10, true, "num_threads=1").unwrap();
+    /// ```
+    pub fn predict_with_params<T: DType>(
+        &self,
+        flat_x: &[T],
+        n_features: i32,
+        is_row_major: bool,
+        params: &str,
+    ) -> Result<Vec<f64>> {
+        self.real_predict(
+            flat_x,
+            n_features,
+            is_row_major,
+            PredictType::Normal,
+            Some(params),
+        )
     }
 
     /// Get raw scores given `&[f32]` or `&[f64]` slice of features. The resulting vector
@@ -293,7 +321,37 @@ impl Booster {
         n_features: i32,
         is_row_major: bool,
     ) -> Result<Vec<f64>> {
-        self.real_predict(flat_x, n_features, is_row_major, PredictType::RawScore)
+        self.real_predict(
+            flat_x,
+            n_features,
+            is_row_major,
+            PredictType::RawScore,
+            None,
+        )
+    }
+
+    /// Get raw scores given `&[f32]` or `&[f64]` slice of features. The resulting vector
+    /// will have the size of `n_rows` by `n_classes`.
+    ///
+    /// Example:
+    /// ```compile_fail
+    /// use serde_json::json;
+    /// let y_pred = bst.predict_with_params(&xs, 10, true, "num_threads=1").unwrap();
+    /// ```
+    pub fn raw_scores_with_params<T: DType>(
+        &self,
+        flat_x: &[T],
+        n_features: i32,
+        is_row_major: bool,
+        parameters: &str,
+    ) -> Result<Vec<f64>> {
+        self.real_predict(
+            flat_x,
+            n_features,
+            is_row_major,
+            PredictType::RawScore,
+            Some(parameters),
+        )
     }
 
     /// Predicts results for the given `x` and returns a vector or vectors (inner vectors will
@@ -478,6 +536,36 @@ mod tests {
         let mut normalized_result = Vec::new();
         for r in &result {
             normalized_result.push(if r[0] > 0.5 { 1 } else { 0 });
+        }
+        assert_eq!(normalized_result, vec![0, 0, 1]);
+    }
+
+    #[test]
+    fn predict_with_params() {
+        let params = json! {
+            {
+                "num_iterations": 10,
+                "objective": "binary",
+                "metric": "auc",
+                "data_random_seed": 0
+            }
+        };
+        let bst = _train_booster(&params);
+        // let feature = vec![vec![0.5; 28], vec![0.0; 28], vec![0.9; 28]];
+        let mut feature = [0.0; 28 * 3];
+        for i in 0..28 {
+            feature[i] = 0.5;
+        }
+        for i in 56..feature.len() {
+            feature[i] = 0.9;
+        }
+
+        let result = bst
+            .predict_with_params(&feature, 28, true, "num_threads=1")
+            .unwrap();
+        let mut normalized_result = Vec::new();
+        for r in &result {
+            normalized_result.push(if *r > 0.5 { 1 } else { 0 });
         }
         assert_eq!(normalized_result, vec![0, 0, 1]);
     }
