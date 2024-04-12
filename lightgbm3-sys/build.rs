@@ -45,7 +45,7 @@ fn main() {
     let cfg = cfg.define("USE_OPENMP", "OFF");
     #[cfg(feature = "gpu")]
     let cfg = cfg.define("USE_GPU", "1");
-    #[cfg(feature = "cude")]
+    #[cfg(feature = "cuda")]
     let cfg = cfg.define("USE_CUDA", "1");
     let dst = cfg.build();
 
