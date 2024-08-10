@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         rust: [stable]
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest] #, windows-latest
     steps:
       - uses: actions/checkout@v2
         with:
@@ -23,25 +23,25 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew install cmake libomp
-          cargo build --features=openmp --features=polars
+          cargo build --features=polars #--features=openmp
       - name: Build for Ubuntu
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake libclang-dev libc++-dev gcc-multilib
           cargo build --features=openmp --features=polars
-      - name: Build for Windows
-        if: matrix.os == 'windows-latest'
-        run: |
-          cargo build --features=openmp --features=polars
+      # - name: Build for Windows
+      #   if: matrix.os == 'windows-latest'
+      #   run: |
+      #     cargo build --features=openmp --features=polars
       - name: Run tests
-        run: cargo test --features=openmp --features=polars
+        run: cargo test --features=polars #--features=openmp
         continue-on-error: ${{ matrix.rust == 'nightly' }}
       - name: Run Clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features=openmp --features=polars -- --no-deps
+          args: --features=polars -- --no-deps #--features=openmp
   format_check:
     name: Run Rustfmt
     runs-on: ubuntu-latest

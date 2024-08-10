@@ -24,7 +24,7 @@ brew install cmake
 brew install libomp # only required if you compile with "openmp" feature
 ```
 
-### for Windows
+#### for Windows
 1. Install CMake and VS Build Tools.
 2. Install LLVM and set `LIBCLANG_PATH` environment variable (i.e. `C:\Program Files\LLVM\bin`)
 
