@@ -9,8 +9,20 @@ use polars::{datatypes::DataType::Float32, prelude::*};
 
 use crate::{Error, Result};
 
+// a way of implementing sealed traits until they
+// come to rust lang. more details at:
+// https://internals.rust-lang.org/t/sealed-traits/16797
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for f32 {}
+    impl Sealed for f64 {}
+}
 /// LightGBM dtype
-pub trait DType {
+///
+/// This trait is sealed as it is not intended
+/// to be implemented out of this crate
+pub trait DType: private::Sealed {
     fn get_c_api_dtype() -> i32;
 }
 

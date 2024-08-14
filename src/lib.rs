@@ -51,7 +51,7 @@ mod dataset;
 mod error;
 
 pub use booster::{Booster, ImportanceType};
-pub use dataset::Dataset;
+pub use dataset::{DType, Dataset};
 pub use error::{Error, Result};
 
 /// Get index of the element in a slice with the maximum value
