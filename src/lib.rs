@@ -4,7 +4,7 @@
 //! - `polars` for [polars](https://github.com/pola-rs/polars) support
 //! - `openmp` for [multi-processing](https://lightgbm.readthedocs.io/en/latest/Installation-Guide.html#build-threadless-version-not-recommended) support
 //! - `gpu` for [GPU](https://lightgbm.readthedocs.io/en/latest/Installation-Guide.html#build-gpu-version) support
-//! - `cuda` for experimental [CUDA](https://lightgbm.readthedocs.io/en/latest/Installation-Guide.html#build-cuda-version) support
+//! - `cuda` for [CUDA](https://lightgbm.readthedocs.io/en/latest/Installation-Guide.html#build-cuda-version) support
 //!
 //! # Examples
 //! ### Training:
