@@ -1,8 +1,13 @@
 [package]
 name = "lightgbm3"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
-authors = ["Dmitry Mottl <dmitry.mottl@gmail.com>", "vaaaaanquish <6syun9@gmail.com>"]
+authors = [
+  "Dmitry Mottl <dmitry.mottl@gmail.com>",
+  "vaaaaanquish <6syun9@gmail.com>",
+  "paq <89paku@gmail.com>",
+  "Benjamin Ellis <benjaminjellis@protonmail.com>",
+]
 license = "MIT"
 repository = "https://github.com/Mottl/lightgbm3-rs"
 description = "Rust bindings for LightGBM library"
@@ -13,11 +18,9 @@ readme = "README.md"
 exclude = [".gitignore", ".github", ".gitmodules", "examples", "benches", "lightgbm3-sys"]
 
 [dependencies]
-lightgbm3-sys = { path = "lightgbm3-sys", version = "1.0.3" }
-libc = "0.2.155"
-derive_builder = "0.20.0"
-serde_json = "1.0.122"
-polars = { version = "0.41.3", optional = true }
+lightgbm3-sys = { path = "lightgbm3-sys", version = "1.0.4" }
+serde_json = "1.0.125"
+polars = { version = "0.42.0", optional = true }
 
 [features]
 default = []

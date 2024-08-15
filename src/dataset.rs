@@ -1,7 +1,7 @@
 //! LightGBM Dataset used for training
 
-use libc::{c_char, c_void};
 use lightgbm3_sys::{DatasetHandle, C_API_DTYPE_FLOAT32, C_API_DTYPE_FLOAT64};
+use std::os::raw::c_void;
 use std::{self, ffi::CString};
 
 #[cfg(feature = "polars")]
@@ -103,14 +103,14 @@ impl Dataset {
             n_rows as i32,
             n_features,
             if is_row_major { 1_i32 } else { 0_i32 }, // is_row_major – 1 for row-major, 0 for column-major
-            params.as_ptr() as *const c_char,
+            params.as_ptr(),
             reference,
             &mut dataset_handle
         ))?;
 
         lgbm_call!(lightgbm3_sys::LGBM_DatasetSetField(
             dataset_handle,
-            label_str.as_ptr() as *const c_char,
+            label_str.as_ptr(),
             label.as_ptr() as *const c_void,
             n_rows as i32,
             C_API_DTYPE_FLOAT32 as i32 // labels should be always float32
@@ -174,8 +174,8 @@ impl Dataset {
         let mut handle = std::ptr::null_mut();
 
         lgbm_call!(lightgbm3_sys::LGBM_DatasetCreateFromFile(
-            file_path_str.as_ptr() as *const c_char,
-            params.as_ptr() as *const c_char,
+            file_path_str.as_ptr(),
+            params.as_ptr(),
             std::ptr::null_mut(),
             &mut handle
         ))?;
@@ -275,7 +275,7 @@ impl Dataset {
         let field_name = CString::new("weight").unwrap();
         lgbm_call!(lightgbm3_sys::LGBM_DatasetSetField(
             self.handle,
-            field_name.as_ptr() as *const c_char,
+            field_name.as_ptr(),
             weights.as_ptr() as *const c_void,
             weights.len() as i32,
             C_API_DTYPE_FLOAT32 as i32, // weights other than float32 are not supported by LightGBM

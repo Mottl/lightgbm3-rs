@@ -1,7 +1,7 @@
 //! LightGBM booster
 
-use libc::{c_char, c_double, c_longlong, c_void};
 use serde_json::Value;
+use std::os::raw::{c_char, c_longlong, c_void};
 use std::{convert::TryInto, ffi::CString};
 
 use crate::{dataset::DType, Dataset, Error, Result};
@@ -56,7 +56,7 @@ impl Booster {
         let mut out_num_iterations = 0;
         let mut handle = std::ptr::null_mut();
         lgbm_call!(lightgbm3_sys::LGBM_BoosterCreateFromModelfile(
-            filename_str.as_ptr() as *const c_char,
+            filename_str.as_ptr(),
             &mut out_num_iterations,
             &mut handle
         ))?;
@@ -70,7 +70,7 @@ impl Booster {
         let mut out_num_iterations = 0;
         let mut handle = std::ptr::null_mut();
         lgbm_call!(lightgbm3_sys::LGBM_BoosterLoadModelFromString(
-            cstring.as_ptr() as *const c_char,
+            cstring.as_ptr(),
             &mut out_num_iterations,
             &mut handle
         ))?;
@@ -86,7 +86,7 @@ impl Booster {
             0_i32,
             -1_i32,
             0_i32,
-            filename_str.as_ptr() as *const c_char
+            filename_str.as_ptr(),
         ))?;
         Ok(())
     }
@@ -102,8 +102,8 @@ impl Booster {
             -1_i32,
             0_i32,
             0,
-            &mut out_size as *mut _,
-            std::ptr::null_mut() as *mut i8
+            &mut out_size,
+            std::ptr::null_mut(),
         ))?;
 
         // write data to buffer and convert
@@ -119,7 +119,7 @@ impl Booster {
             -1_i32,
             0_i32,
             buffer.len() as c_longlong,
-            &mut out_size as *mut _,
+            &mut out_size,
             buffer.as_mut_ptr() as *mut c_char
         ))?;
 
@@ -210,7 +210,7 @@ impl Booster {
         let mut handle = std::ptr::null_mut();
         lgbm_call!(lightgbm3_sys::LGBM_BoosterCreate(
             dataset.handle,
-            params_cstring.as_ptr() as *const c_char,
+            params_cstring.as_ptr(),
             &mut handle
         ))?;
 
@@ -254,12 +254,11 @@ impl Booster {
         }
         let n_rows = flat_x.len() / n_features as usize;
         let params_cstring = parameters
-            .map(|s| CString::new(s))
+            .map(CString::new)
             .unwrap_or(CString::new(""))
             .unwrap();
         let mut out_length: c_longlong = 0;
-
-        let out_result: Vec<f64> = vec![Default::default(); n_rows * self.n_classes as usize];
+        let mut out_result: Vec<f64> = vec![Default::default(); n_rows * self.n_classes as usize];
         lgbm_call!(lightgbm3_sys::LGBM_BoosterPredictForMat(
             self.handle,
             flat_x.as_ptr() as *const c_void,
@@ -270,9 +269,9 @@ impl Booster {
             predict_type.into(),                      // predict_type
             0_i32,                                    // start_iteration
             self.max_iterations,                      // num_iteration, <= 0 means no limit
-            params_cstring.as_ptr() as *const c_char,
+            params_cstring.as_ptr(),
             &mut out_length,
-            out_result.as_ptr() as *mut c_double
+            out_result.as_mut_ptr()
         ))?;
 
         Ok(out_result)
@@ -421,7 +420,7 @@ impl Booster {
         let mut cur_iteration: i32 = 0;
         lgbm_call!(lightgbm3_sys::LGBM_BoosterGetCurrentIteration(
             self.handle,
-            &mut cur_iteration as *mut _
+            &mut cur_iteration
         ))?;
         Ok(cur_iteration + 1)
     }
@@ -429,14 +428,14 @@ impl Booster {
     /// Gets features names.
     pub fn feature_name(&self) -> Result<Vec<String>> {
         let num_feature = self.inner_num_features()?;
-        let feature_name_length = 32;
+        let feature_name_length = 64;
         let mut num_feature_names = 0;
         let mut out_buffer_len = 0;
         let out_strs = (0..num_feature)
             .map(|_| {
                 CString::new(" ".repeat(feature_name_length))
                     .unwrap()
-                    .into_raw() as *mut c_char
+                    .into_raw()
             })
             .collect::<Vec<_>>();
         lgbm_call!(lightgbm3_sys::LGBM_BoosterGetFeatureNames(
@@ -457,12 +456,12 @@ impl Booster {
     /// Get feature importance. Refer to [`ImportanceType`]
     pub fn feature_importance(&self, importance_type: ImportanceType) -> Result<Vec<f64>> {
         let num_feature = self.inner_num_features()?;
-        let out_result: Vec<f64> = vec![Default::default(); num_feature as usize];
+        let mut out_result: Vec<f64> = vec![Default::default(); num_feature as usize];
         lgbm_call!(lightgbm3_sys::LGBM_BoosterFeatureImportance(
             self.handle,
             0_i32,
             importance_type.into(),
-            out_result.as_ptr() as *mut c_double
+            out_result.as_mut_ptr()
         ))?;
         Ok(out_result)
     }
