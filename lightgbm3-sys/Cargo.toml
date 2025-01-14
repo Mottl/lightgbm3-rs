@@ -1,6 +1,6 @@
 [package]
 name = "lightgbm3-sys"
-version = "1.0.5"
+version = "1.0.6"
 edition = "2021"
 authors = ["Dmitry Mottl <dmitry.mottl@gmail.com>", "vaaaaanquish <6syun9@gmail.com>"]
 build = "build.rs"
@@ -12,12 +12,12 @@ readme = "README.md"
 exclude = ["README.md", ".gitlab-ci.yml", ".hgeol", ".gitignore", ".appveyor.yml", ".coveralls.yml", ".travis.yml", ".github", ".gitmodules", ".nuget", "**/*.md", "lightgbm/compute/doc", "lightgbm/compute/example", "lightgbm/compute/index.html", "lightgbm/compute/perf", "lightgbm/compute/test", "lightgbm/eigen/debug", "lightgbm/eigen/demos", "lightgbm/eigen/doc", "lightgbm/eigen/failtest", "lightgbm/eigen/test", "lightgbm/examples", "lightgbm/external_libs/fast_double_parser/benchmarks", "lightgbm/external_libs/fmt/doc", "lightgbm/external_libs/fmt/test"]
 
 [dependencies]
-libc = "0.2.155"
+libc = "0.2"
 
 [build-dependencies]
-cmake = "0.1.50"
-bindgen = "0.69.4"
-doxygen-rs = "0.4.2"
+cmake = "0.1"
+bindgen = "0.71"
+doxygen-rs = "0.4"
 
 [features]
 openmp = []
