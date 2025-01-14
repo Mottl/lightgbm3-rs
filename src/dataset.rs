@@ -219,7 +219,7 @@ impl Dataset {
         }
 
         // Take label from the dataframe:
-        let label_series = dataframe.select_series([label_column])?[0].cast(&Float32)?;
+        let label_series = dataframe.select_columns([label_column])?[0].cast(&Float32)?;
         if label_series.null_count() != 0 {
             return Err(Error::new(
                 "Can't create a dataset with null values in label array",
@@ -228,7 +228,7 @@ impl Dataset {
         let _ = dataframe.drop_in_place(label_column)?;
 
         let mut label_values = Vec::with_capacity(m);
-        let label_values_ca = label_series.unpack::<Float32Type>()?;
+        let label_values_ca = label_series.f32()?;
         label_values.extend(label_values_ca.into_no_null_iter());
 
         let mut feature_values = Vec::with_capacity(m * (n - 1));
@@ -240,7 +240,7 @@ impl Dataset {
             }
 
             let series = series.cast(&Float32)?;
-            let ca = series.unpack::<Float32Type>()?;
+            let ca = series.f32()?;
             feature_values.extend(ca.into_no_null_iter());
         }
         Self::from_slice(&feature_values, &label_values, (n - 1) as i32, false)
