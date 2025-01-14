@@ -47,7 +47,6 @@ fn main() {
     let mut cfg = Config::new(&lgbm_root);
     let cfg = cfg
         .profile("Release")
-        .uses_cxx11()
         .cxxflag("-std=c++11")
         .define("BUILD_STATIC_LIB", "ON");
     #[cfg(not(feature = "openmp"))]
@@ -59,10 +58,14 @@ fn main() {
     let dst = cfg.build();
 
     // bindgen build
+    let mut clang_args = vec!["-x", "c++", "-std=c++11"];
+    if target.contains("apple") {
+        clang_args.push("-mmacosx-version-min=10.12");
+    }
     let bindings = bindgen::Builder::default()
         .header("lightgbm/include/LightGBM/c_api.h")
         .allowlist_file("lightgbm/include/LightGBM/c_api.h")
-        .clang_args(&["-x", "c++", "-std=c++11"])
+        .clang_args(&clang_args)
         .clang_arg(format!("-I{}", lgbm_root.join("include").display()))
         .parse_callbacks(Box::new(DoxygenCallback))
         .generate()
