@@ -5,8 +5,8 @@ use std::hint::black_box;
 use std::time::Instant;
 
 fn generate_train_data() -> (Vec<f64>, Vec<f32>) {
-    let mut rng = rand::thread_rng();
-    let uniform = rand_distr::Uniform::<f64>::new(-5.0, 5.0);
+    let mut rng = rand::rng();
+    let uniform = rand_distr::Uniform::<f64>::new(-5.0, 5.0).unwrap();
     let normal = rand_distr::Normal::<f64>::new(0.0, 0.1).unwrap();
 
     let mut x: Vec<f64> = vec![];
