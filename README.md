@@ -3,7 +3,7 @@
 [![Docs.rs](https://docs.rs/lightgbm3/badge.svg)](https://docs.rs/lightgbm3/)
 [![build](https://github.com/Mottl/lightgbm3-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Mottl/lightgbm3-rs/actions)
 
-**`lightgbm3`** is based on [`lightgbm`](https://github.com/vaaaaanquish/lightgbm-rs)
+**`lightgbm3`** is based on [`lightgbm`](https://github.com/vaaaaanquish/lightgbm-rs) crate
 (which is unsupported by now), but it is not back-compatible with it.
 
 ## Installation
