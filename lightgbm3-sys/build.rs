@@ -47,7 +47,7 @@ fn main() {
     let mut cfg = Config::new(&lgbm_root);
     let cfg = cfg
         .profile("Release")
-        .cxxflag("-std=c++11")
+        .cxxflag("-std=c++14")
         .define("BUILD_STATIC_LIB", "ON");
     #[cfg(not(feature = "openmp"))]
     let cfg = cfg.define("USE_OPENMP", "OFF");
@@ -58,7 +58,7 @@ fn main() {
     let dst = cfg.build();
 
     // bindgen build
-    let mut clang_args = vec!["-x", "c++", "-std=c++11"];
+    let mut clang_args = vec!["-x", "c++", "-std=c++14"];
     if target.contains("apple") {
         clang_args.push("-mmacosx-version-min=10.12");
     }
