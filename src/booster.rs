@@ -259,7 +259,11 @@ impl Booster {
             .unwrap_or(CString::new(""))
             .unwrap();
         let mut out_length: c_longlong = 0;
-        let mut out_result: Vec<f64> = vec![Default::default(); n_rows * self.n_classes as usize];
+        let output_size = match predict_type {
+            PredictType::Contrib => n_rows * (self.n_features + 1) as usize,
+            _ => n_rows * self.n_classes as usize,
+        };
+        let mut out_result: Vec<f64> = vec![Default::default(); output_size];
         lgbm_call!(lightgbm3_sys::LGBM_BoosterPredictForMat(
             self.handle,
             flat_x.as_ptr() as *const c_void,
