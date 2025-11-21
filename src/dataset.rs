@@ -1,6 +1,6 @@
 //! LightGBM Dataset used for training
 
-use lightgbm3_sys::{DatasetHandle, C_API_DTYPE_FLOAT32, C_API_DTYPE_FLOAT64};
+use lightgbm3_sys::{DatasetHandle, C_API_DTYPE_FLOAT32, C_API_DTYPE_FLOAT64, LGBM_DatasetGetFeatureNames, LGBM_DatasetSetFeatureNames};
 use std::os::raw::c_void;
 use std::{self, ffi::CString};
 
@@ -47,6 +47,93 @@ impl Dataset {
     /// Creates a new Dataset object from the LightGBM's DatasetHandle.
     fn new(handle: DatasetHandle) -> Self {
         Self { handle }
+    }
+
+    /// Set feature names for the dataset.
+    ///
+    /// This allows the model to save and display correct feature names instead of generic "Column_X".
+    pub fn set_feature_names(&mut self, feature_names: &[String]) -> Result<()> {
+        // 1. Verify that the number of feature names matches the dataset
+        let (_, n_features) = self.size()?;
+        if feature_names.len() as i32 != n_features {
+            return Err(Error::new(format!(
+                "Input feature names count ({}) does not match dataset feature count ({})",
+                feature_names.len(),
+                n_features
+            )));
+        }
+
+        // 2. Convert Rust Strings to CStrings (handling null-termination and memory layout)
+        let c_names: Vec<CString> = feature_names
+            .iter()
+            .map(|s| CString::new(s.as_bytes()).map_err(|e| Error::new(format!("Invalid feature name string: {}", e))))
+            .collect::<Result<Vec<CString>>>()?;
+
+        // 3. Create an array of pointers to the CString internal buffers (char**)
+        let c_ptrs: Vec<*const std::os::raw::c_char> = c_names
+            .iter()
+            .map(|s| s.as_ptr())
+            .collect();
+
+        // 4. Call LightGBM C API
+        // int LGBM_DatasetSetFeatureNames(DatasetHandle handle, const char** feature_names, int num_features);
+        lgbm_call!(LGBM_DatasetSetFeatureNames(
+            self.handle,
+            c_ptrs.clone().as_mut_ptr(),
+            feature_names.len() as i32
+        ))?;
+
+        Ok(())
+    }
+
+    /// Get feature names from the dataset.
+    pub fn get_feature_names(&self) -> Result<Vec<String>> {
+        // 1. Get the number of features
+        let (_, n_features) = self.size()?;
+        let len = n_features as usize;
+
+        // 2. Prepare buffers
+        // LightGBM C API requires the caller to allocate memory.
+        // We assume a maximum feature name length of 256 bytes, which is usually sufficient.
+        const MAX_NAME_LEN: usize = 256;
+
+        // Create 'len' buffers, each of size MAX_NAME_LEN, initialized to 0
+        let mut name_buffers: Vec<Vec<u8>> = vec![vec![0u8; MAX_NAME_LEN]; len];
+
+        // Create an array of pointers to these buffers (char**)
+        let mut name_ptrs: Vec<*mut std::os::raw::c_char> = name_buffers
+            .iter_mut()
+            .map(|buf| buf.as_mut_ptr() as *mut std::os::raw::c_char)
+            .collect();
+
+        let mut num_features_out = 0;
+        let mut required_len_out = 0;
+
+        // 3. Call C API
+        // int LGBM_DatasetGetFeatureNames(DatasetHandle handle, const int len, int* num_features,
+        //     const size_t max_feature_name_len, size_t* feature_name_len, char** feature_names);
+        lgbm_call!(LGBM_DatasetGetFeatureNames(
+            self.handle,
+            len as i32,
+            &mut num_features_out,
+            MAX_NAME_LEN,
+            &mut required_len_out,
+            name_ptrs.as_mut_ptr()
+        ))?;
+
+        // 4. Convert C strings to Rust Strings
+        let mut result = Vec::with_capacity(num_features_out as usize);
+        for i in 0..num_features_out as usize {
+            // Create CStr from pointer
+            let c_str = unsafe { std::ffi::CStr::from_ptr(name_ptrs[i]) };
+            // Convert to Rust String (handle UTF-8)
+            let str_slice = c_str
+                .to_str()
+                .map_err(|e| Error::new(format!("Invalid UTF-8 in feature name at index {}: {}", i, e)))?;
+            result.push(str_slice.to_string());
+        }
+
+        Ok(result)
     }
 
     /// Creates a new `Dataset` (x, labels) from flat `&[f64]` slice with a specified number
@@ -417,4 +504,21 @@ mod tests {
         assert!(dataset.set_weights(&weights_short).is_err());
         assert!(dataset.set_weights(&weights_long).is_err());
     }
+
+    #[test]
+    fn test_feature_names() {
+        let xs = vec![
+            vec![1.0, 0.1],
+            vec![0.7, 0.4],
+        ];
+        let labels = vec![0.0, 1.0];
+        let mut dataset = Dataset::from_vec_of_vec(xs, labels, true).unwrap();
+        
+        let names = vec!["age".to_string(), "height".to_string()];
+        dataset.set_feature_names(&names).unwrap();
+        
+        let retrieved_names = dataset.get_feature_names().unwrap();
+        assert_eq!(names, retrieved_names);
+    }
+
 }
