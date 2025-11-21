@@ -22,6 +22,7 @@ pub struct Booster {
 enum PredictType {
     Normal,
     RawScore,
+    Contrib
 }
 
 /// Type of feature importance
@@ -312,6 +313,21 @@ impl Booster {
         )
     }
 
+    pub fn predict_contrib<T: DType>(
+        &self,
+        flat_x: &[T],
+        n_features: i32,
+        is_row_major: bool,
+    ) -> Result<Vec<f64>> {
+        self.real_predict(
+            flat_x,
+            n_features,
+            is_row_major,
+            PredictType::Contrib,
+            None,
+        )
+    }
+
     /// Get raw scores given `&[f32]` or `&[f64]` slice of features. The resulting vector
     /// will have the size of `n_rows` by `n_classes`.
     pub fn raw_scores<T: DType>(
@@ -487,6 +503,7 @@ impl From<PredictType> for i32 {
         match value {
             PredictType::Normal => lightgbm3_sys::C_API_PREDICT_NORMAL as i32,
             PredictType::RawScore => lightgbm3_sys::C_API_PREDICT_RAW_SCORE as i32,
+            PredictType::Contrib => lightgbm3_sys::C_API_PREDICT_CONTRIB as i32,
         }
     }
 }
