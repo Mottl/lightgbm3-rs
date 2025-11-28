@@ -22,7 +22,7 @@ pub struct Booster {
 enum PredictType {
     Normal,
     RawScore,
-    Contrib
+    Contrib,
 }
 
 /// Type of feature importance
@@ -323,13 +323,7 @@ impl Booster {
         n_features: i32,
         is_row_major: bool,
     ) -> Result<Vec<f64>> {
-        self.real_predict(
-            flat_x,
-            n_features,
-            is_row_major,
-            PredictType::Contrib,
-            None,
-        )
+        self.real_predict(flat_x, n_features, is_row_major, PredictType::Contrib, None)
     }
 
     /// Get raw scores given `&[f32]` or `&[f64]` slice of features. The resulting vector
