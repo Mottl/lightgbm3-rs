@@ -22,6 +22,7 @@ pub struct Booster {
 enum PredictType {
     Normal,
     RawScore,
+    Contrib
 }
 
 /// Type of feature importance
@@ -258,7 +259,11 @@ impl Booster {
             .unwrap_or(CString::new(""))
             .unwrap();
         let mut out_length: c_longlong = 0;
-        let mut out_result: Vec<f64> = vec![Default::default(); n_rows * self.n_classes as usize];
+        let output_size = match predict_type {
+            PredictType::Contrib => n_rows * (self.n_features + 1) as usize,
+            _ => n_rows * self.n_classes as usize,
+        };
+        let mut out_result: Vec<f64> = vec![Default::default(); output_size];
         lgbm_call!(lightgbm3_sys::LGBM_BoosterPredictForMat(
             self.handle,
             flat_x.as_ptr() as *const c_void,
@@ -309,6 +314,21 @@ impl Booster {
             is_row_major,
             PredictType::Normal,
             Some(params),
+        )
+    }
+
+    pub fn predict_contrib<T: DType>(
+        &self,
+        flat_x: &[T],
+        n_features: i32,
+        is_row_major: bool,
+    ) -> Result<Vec<f64>> {
+        self.real_predict(
+            flat_x,
+            n_features,
+            is_row_major,
+            PredictType::Contrib,
+            None,
         )
     }
 
@@ -487,6 +507,7 @@ impl From<PredictType> for i32 {
         match value {
             PredictType::Normal => lightgbm3_sys::C_API_PREDICT_NORMAL as i32,
             PredictType::RawScore => lightgbm3_sys::C_API_PREDICT_RAW_SCORE as i32,
+            PredictType::Contrib => lightgbm3_sys::C_API_PREDICT_CONTRIB as i32,
         }
     }
 }

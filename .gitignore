@@ -31,3 +31,5 @@ Session.vim
 
 # Tarpaulin coverage files
 cobertura.xml
+
+.specstory
