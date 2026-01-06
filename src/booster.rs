@@ -196,9 +196,46 @@ impl Booster {
     /// Full set of parameters can be found on the official LightGBM docs:
     /// <https://lightgbm.readthedocs.io/en/latest/Parameters.html>
     pub fn train(dataset: Dataset, parameters: &Value) -> Result<Self> {
-        let num_iterations: i64 = parameters["num_iterations"].as_i64().unwrap_or(100);
+        Self::train_with_valid(dataset, None, parameters)
+    }
 
-        // exchange params {"x": "y", "z": 1} => "x=y z=1"
+    /// Trains a new model with optional validation dataset and early stopping.
+    ///
+    /// If `valid_dataset` is provided, you can use `early_stopping_rounds` in parameters
+    /// to stop training when the validation metric doesn't improve for N consecutive rounds.
+    ///
+    /// Example with early stopping:
+    /// ```
+    /// extern crate serde_json;
+    /// use lightgbm3::{Dataset, Booster};
+    /// use serde_json::json;
+    ///
+    /// let train_xs = vec![vec![1.0, 0.1], vec![0.7, 0.4], vec![0.9, 0.8], vec![0.2, 0.2]];
+    /// let train_labels = vec![0.0, 0.0, 1.0, 1.0];
+    /// let train_dataset = Dataset::from_vec_of_vec(train_xs, train_labels, true).unwrap();
+    ///
+    /// let valid_xs = vec![vec![0.8, 0.3], vec![0.3, 0.6]];
+    /// let valid_labels = vec![0.0, 1.0];
+    /// let valid_dataset = Dataset::from_vec_of_vec(valid_xs, valid_labels, true).unwrap();
+    ///
+    /// let params = json!{
+    ///    {
+    ///         "num_iterations": 100,
+    ///         "objective": "binary",
+    ///         "metric": "auc",
+    ///         "early_stopping_rounds": 10
+    ///     }
+    /// };
+    /// let bst = Booster::train_with_valid(train_dataset, Some(valid_dataset), &params).unwrap();
+    /// ```
+    pub fn train_with_valid(
+        dataset: Dataset,
+        valid_dataset: Option<Dataset>,
+        parameters: &Value,
+    ) -> Result<Self> {
+        let num_iterations: i64 = parameters["num_iterations"].as_i64().unwrap_or(100);
+        let early_stopping_rounds: Option<i64> = parameters["early_stopping_rounds"].as_i64();
+
         let params_string = parameters
             .as_object()
             .unwrap()
@@ -215,14 +252,93 @@ impl Booster {
             &mut handle
         ))?;
 
+        if let Some(ref valid) = valid_dataset {
+            lgbm_call!(lightgbm3_sys::LGBM_BoosterAddValidData(
+                handle,
+                valid.handle
+            ))?;
+        }
+
         let mut is_finished: i32 = 0;
-        for _ in 1..num_iterations {
+        let mut best_score: Option<f64> = None;
+        let mut rounds_without_improvement: i64 = 0;
+        let has_valid = valid_dataset.is_some();
+        let do_early_stopping = has_valid && early_stopping_rounds.is_some();
+
+        for iter in 1..num_iterations {
             lgbm_call!(lightgbm3_sys::LGBM_BoosterUpdateOneIter(
                 handle,
                 &mut is_finished
             ))?;
+
+            if is_finished != 0 {
+                break;
+            }
+
+            if do_early_stopping {
+                let early_stop_rounds = early_stopping_rounds.unwrap();
+                let eval_results = Self::get_eval_at(handle, 1)?;
+                if let Some(&current_score) = eval_results.first() {
+                    let improved = match best_score {
+                        None => true,
+                        Some(best) => Self::is_score_better(current_score, best, parameters),
+                    };
+
+                    if improved {
+                        best_score = Some(current_score);
+                        rounds_without_improvement = 0;
+                    } else {
+                        rounds_without_improvement += 1;
+                        if rounds_without_improvement >= early_stop_rounds {
+                            let rollback_iters = early_stop_rounds.min(iter);
+                            for _ in 0..rollback_iters {
+                                lgbm_call!(lightgbm3_sys::LGBM_BoosterRollbackOneIter(handle))?;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
         }
+
         Booster::new(handle)
+    }
+
+    fn is_score_better(current: f64, best: f64, parameters: &Value) -> bool {
+        let metric = parameters["metric"].as_str().unwrap_or("binary_logloss");
+        let higher_is_better = matches!(
+            metric,
+            "auc" | "average_precision" | "map" | "ndcg" | "accuracy"
+        );
+        if higher_is_better {
+            current > best
+        } else {
+            current < best
+        }
+    }
+
+    fn get_eval_at(handle: BoosterHandle, data_idx: i32) -> Result<Vec<f64>> {
+        let mut num_evals: i32 = 0;
+        lgbm_call!(lightgbm3_sys::LGBM_BoosterGetEvalCounts(
+            handle,
+            &mut num_evals
+        ))?;
+
+        if num_evals == 0 {
+            return Ok(vec![]);
+        }
+
+        let mut out_len: i32 = 0;
+        let mut results: Vec<f64> = vec![0.0; num_evals as usize];
+        lgbm_call!(lightgbm3_sys::LGBM_BoosterGetEval(
+            handle,
+            data_idx,
+            &mut out_len,
+            results.as_mut_ptr()
+        ))?;
+
+        results.truncate(out_len as usize);
+        Ok(results)
     }
 
     fn real_predict<T: DType>(
@@ -635,5 +751,66 @@ mod tests {
         assert!(!booster_file_content.is_empty());
         assert_eq!(Ok(booster_file_content.clone()), bst.save_string());
         assert!(Booster::from_string(&booster_file_content).is_ok());
+    }
+
+    fn _read_test_file_with_ref(train: &Dataset) -> Result<Dataset> {
+        Dataset::from_file_with_reference(
+            "lightgbm3-sys/lightgbm/examples/binary_classification/binary.test",
+            Some(train),
+        )
+    }
+
+    #[test]
+    fn train_with_valid_no_early_stopping() {
+        let train_dataset = _read_train_file().unwrap();
+        let valid_dataset = _read_test_file_with_ref(&train_dataset).unwrap();
+        let params = json! {
+            {
+                "num_iterations": 10,
+                "objective": "binary",
+                "metric": "auc",
+                "data_random_seed": 0
+            }
+        };
+        let bst = Booster::train_with_valid(train_dataset, Some(valid_dataset), &params).unwrap();
+        assert_eq!(bst.num_iterations(), 10);
+    }
+
+    #[test]
+    fn train_with_early_stopping() {
+        let train_dataset = _read_train_file().unwrap();
+        let valid_dataset = _read_test_file_with_ref(&train_dataset).unwrap();
+        let params = json! {
+            {
+                "num_iterations": 100,
+                "objective": "binary",
+                "metric": "auc",
+                "data_random_seed": 0,
+                "early_stopping_rounds": 5
+            }
+        };
+        let bst = Booster::train_with_valid(train_dataset, Some(valid_dataset), &params).unwrap();
+        assert!(
+            bst.num_iterations() < 100,
+            "Expected early stopping to trigger before 100 iterations, got {}",
+            bst.num_iterations()
+        );
+    }
+
+    #[test]
+    fn train_with_early_stopping_logloss() {
+        let train_dataset = _read_train_file().unwrap();
+        let valid_dataset = _read_test_file_with_ref(&train_dataset).unwrap();
+        let params = json! {
+            {
+                "num_iterations": 100,
+                "objective": "binary",
+                "metric": "binary_logloss",
+                "data_random_seed": 0,
+                "early_stopping_rounds": 5
+            }
+        };
+        let bst = Booster::train_with_valid(train_dataset, Some(valid_dataset), &params).unwrap();
+        assert!(bst.num_iterations() > 0);
     }
 }
