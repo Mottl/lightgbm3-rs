@@ -167,6 +167,33 @@ impl Dataset {
         n_features: i32,
         is_row_major: bool,
     ) -> Result<Self> {
+        Self::from_slice_with_reference(flat_x, label, n_features, is_row_major, None)
+    }
+
+    /// Creates a new `Dataset` from flat slice with a reference dataset.
+    ///
+    /// When creating a validation dataset, pass the training dataset as reference
+    /// to ensure consistent bin mappers. This is required for early stopping.
+    ///
+    /// # Example
+    /// ```
+    /// use lightgbm3::Dataset;
+    ///
+    /// let train_x: Vec<f64> = vec![1.0, 0.1, 0.7, 0.4, 0.9, 0.8];
+    /// let train_label = vec![0.0, 0.0, 1.0];
+    /// let train = Dataset::from_slice(&train_x, &train_label, 2, true).unwrap();
+    ///
+    /// let valid_x: Vec<f64> = vec![0.5, 0.5, 0.2, 0.8];
+    /// let valid_label = vec![0.0, 1.0];
+    /// let valid = Dataset::from_slice_with_reference(&valid_x, &valid_label, 2, true, Some(&train)).unwrap();
+    /// ```
+    pub fn from_slice_with_reference<T: DType>(
+        flat_x: &[T],
+        label: &[f32],
+        n_features: i32,
+        is_row_major: bool,
+        reference: Option<&Dataset>,
+    ) -> Result<Self> {
         if n_features <= 0 {
             return Err(Error::new("number of features should be greater than 0"));
         }
@@ -187,17 +214,17 @@ impl Dataset {
         }
         let params = CString::new("").unwrap();
         let label_str = CString::new("label").unwrap();
-        let reference = std::ptr::null_mut(); // not used
-        let mut dataset_handle = std::ptr::null_mut(); // will point to a new DatasetHandle
+        let ref_handle = reference.map_or(std::ptr::null_mut(), |r| r.handle);
+        let mut dataset_handle = std::ptr::null_mut();
 
         lgbm_call!(lightgbm3_sys::LGBM_DatasetCreateFromMat(
             flat_x.as_ptr() as *const c_void,
             T::get_c_api_dtype(),
             n_rows as i32,
             n_features,
-            if is_row_major { 1_i32 } else { 0_i32 }, // is_row_major – 1 for row-major, 0 for column-major
+            if is_row_major { 1_i32 } else { 0_i32 },
             params.as_ptr(),
-            reference,
+            ref_handle,
             &mut dataset_handle
         ))?;
 
@@ -206,7 +233,7 @@ impl Dataset {
             label_str.as_ptr(),
             label.as_ptr() as *const c_void,
             n_rows as i32,
-            C_API_DTYPE_FLOAT32 as i32 // labels should be always float32
+            C_API_DTYPE_FLOAT32 as i32
         ))?;
 
         Ok(Self::new(dataset_handle))
@@ -262,14 +289,31 @@ impl Dataset {
     /// let dataset = Dataset::from_file(&"lightgbm3-sys/lightgbm/examples/binary_classification/binary.train").unwrap();
     /// ```
     pub fn from_file(file_path: &str) -> Result<Self> {
+        Self::from_file_with_reference(file_path, None)
+    }
+
+    /// Create a new `Dataset` from file with a reference dataset.
+    ///
+    /// When creating a validation dataset, pass the training dataset as reference
+    /// to ensure consistent bin mappers. This is required for early stopping.
+    ///
+    /// # Example
+    /// ```
+    /// use lightgbm3::Dataset;
+    ///
+    /// let train = Dataset::from_file(&"lightgbm3-sys/lightgbm/examples/binary_classification/binary.train").unwrap();
+    /// let valid = Dataset::from_file_with_reference(&"lightgbm3-sys/lightgbm/examples/binary_classification/binary.test", Some(&train)).unwrap();
+    /// ```
+    pub fn from_file_with_reference(file_path: &str, reference: Option<&Dataset>) -> Result<Self> {
         let file_path_str = CString::new(file_path).unwrap();
         let params = CString::new("").unwrap();
         let mut handle = std::ptr::null_mut();
+        let ref_handle = reference.map_or(std::ptr::null_mut(), |r| r.handle);
 
         lgbm_call!(lightgbm3_sys::LGBM_DatasetCreateFromFile(
             file_path_str.as_ptr(),
             params.as_ptr(),
-            std::ptr::null_mut(),
+            ref_handle,
             &mut handle
         ))?;
 
@@ -337,6 +381,59 @@ impl Dataset {
             feature_values.extend(ca.into_no_null_iter());
         }
         Self::from_slice(&feature_values, &label_values, (n - 1) as i32, false)
+    }
+
+    /// Create a new `Dataset` from a polars DataFrame with a reference dataset.
+    ///
+    /// When creating a validation dataset, pass the training dataset as reference
+    /// to ensure consistent bin mappers. This is required for early stopping.
+    #[cfg(feature = "polars")]
+    pub fn from_dataframe_with_reference(
+        mut dataframe: DataFrame,
+        label_column: &str,
+        reference: Option<&Dataset>,
+    ) -> Result<Self> {
+        let (m, n) = dataframe.shape();
+        if m == 0 {
+            return Err(Error::new("DataFrame is empty"));
+        }
+        if n < 1 {
+            return Err(Error::new(
+                "DataFrame should contain at least 1 feature column and 1 label column",
+            ));
+        }
+
+        let label_series = dataframe.select_columns([label_column])?[0].cast(&Float32)?;
+        if label_series.null_count() != 0 {
+            return Err(Error::new(
+                "Can't create a dataset with null values in label array",
+            ));
+        }
+        let _ = dataframe.drop_in_place(label_column)?;
+
+        let mut label_values = Vec::with_capacity(m);
+        let label_values_ca = label_series.f32()?;
+        label_values.extend(label_values_ca.into_no_null_iter());
+
+        let mut feature_values = Vec::with_capacity(m * (n - 1));
+        for series in dataframe.get_columns().iter() {
+            if series.null_count() != 0 {
+                return Err(Error::new(
+                    "Can't create a dataset with null values in feature array",
+                ));
+            }
+
+            let series = series.cast(&Float32)?;
+            let ca = series.f32()?;
+            feature_values.extend(ca.into_no_null_iter());
+        }
+        Self::from_slice_with_reference(
+            &feature_values,
+            &label_values,
+            (n - 1) as i32,
+            false,
+            reference,
+        )
     }
 
     /// Get the size of Dataset as `(n_rows, n_features)` tuple
