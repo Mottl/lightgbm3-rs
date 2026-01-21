@@ -1,6 +1,6 @@
 [package]
 name = "lightgbm3"
-version = "1.0.9"
+version = "1.0.10"
 edition = "2021"
 authors = [
   "Dmitry Mottl <dmitry.mottl@gmail.com>",
@@ -20,7 +20,7 @@ exclude = [".gitignore", ".github", ".gitmodules", "examples", "benches", "light
 [dependencies]
 lightgbm3-sys = { path = "lightgbm3-sys", version = "1" }
 serde_json = "1"
-polars = { version = "0.47", optional = true }
+polars = { version = ">=0.47", optional = true }
 
 [features]
 default = []
