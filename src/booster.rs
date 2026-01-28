@@ -265,7 +265,7 @@ impl Booster {
         let has_valid = valid_dataset.is_some();
         let do_early_stopping = has_valid && early_stopping_rounds.is_some();
 
-        for iter in 1..num_iterations {
+        for iter in 1..=num_iterations {
             lgbm_call!(lightgbm3_sys::LGBM_BoosterUpdateOneIter(
                 handle,
                 &mut is_finished
@@ -598,7 +598,7 @@ impl Booster {
     /// will have the size of `n_rows` by `n_classes`.
     ///
     /// Example:
-    /// ```compile_fail
+    /// ```ignore
     /// use serde_json::json;
     /// let y_pred = bst.predict_with_params(&xs, 10, true, "num_threads=1").unwrap();
     /// ```
@@ -648,7 +648,7 @@ impl Booster {
     /// will have the size of `n_rows` by `n_classes`.
     ///
     /// Example:
-    /// ```compile_fail
+    /// ```ignore
     /// use serde_json::json;
     /// let y_pred = bst.predict_with_params(&xs, 10, true, "num_threads=1").unwrap();
     /// ```
@@ -737,7 +737,7 @@ impl Booster {
             self.handle,
             &mut cur_iteration
         ))?;
-        Ok(cur_iteration + 1)
+        Ok(cur_iteration)
     }
 
     /// Gets features names.
@@ -898,7 +898,8 @@ mod tests {
         let params = _default_params();
         let bst = _train_booster(&params);
         let feature_importance = bst.feature_importance(ImportanceType::Gain).unwrap();
-        assert_eq!(feature_importance, vec![0.0; 28]);
+        assert_eq!(feature_importance.len(), bst.n_features as usize);
+        assert!(feature_importance.iter().sum::<f64>() > 0.0);
     }
 
     #[test]
