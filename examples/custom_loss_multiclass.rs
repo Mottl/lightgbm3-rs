@@ -4,7 +4,7 @@
 //! We implement a custom Multi-class Log-Loss (Softmax Cross-Entropy).
 //!
 //! Gradient: p_ik - y_ik
-//! Hessian: 2 * p_ik * (1 - p_ik) (A common used approximation in LightGBM)
+//! Hessian: factor * p_ik * (1 - p_ik)
 
 use lightgbm3::{argmax, Booster, Dataset};
 use serde_json::json;
@@ -41,6 +41,7 @@ fn custom_softmax_objective(
     let n_rows = labels.len();
     let mut grads = vec![0.0f32; n_rows * n_classes];
     let mut hess = vec![0.0f32; n_rows * n_classes];
+    let factor = n_classes as f32 / (n_classes as f32 - 1.0);
 
     for i in 0..n_rows {
         // LightGBM predictions for training data (from GetPredict) are usually class-major for multi-class:
@@ -74,9 +75,8 @@ fn custom_softmax_objective(
             // Gradient: p_ik - y_ik
             grads[k * n_rows + i] = p_ik - y_ik;
 
-            // Hessian: 2 * p_ik * (1 - p_ik)
-            // Note: LightGBM uses a factor of 2 in some of its internal hessian approximations for multiclass
-            hess[k * n_rows + i] = 2.0 * p_ik * (1.0 - p_ik);
+            // Hessian: factor * p_ik * (1 - p_ik)
+            hess[k * n_rows + i] = factor * p_ik * (1.0 - p_ik);
         }
     }
 
