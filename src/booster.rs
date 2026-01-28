@@ -304,6 +304,191 @@ impl Booster {
         Booster::new(handle)
     }
 
+    /// Trains a new model with a custom objective function.
+    ///
+    /// This method allows you to define your own loss function by providing gradient and Hessian calculations.
+    /// The `objective_fn` takes current predictions and true labels, and returns (gradients, hessians).
+    ///
+    /// # Example
+    /// ```no_run
+    /// use lightgbm3::{Dataset, Booster};
+    /// use serde_json::json;
+    ///
+    /// let xs = vec![1.0, 0.1, 0.7, 0.4, 0.9, 0.8];
+    /// let labels = vec![0.5, 1.2, 2.1];
+    /// let dataset = Dataset::from_slice(&xs, &labels, 2, true).unwrap();
+    ///
+    /// // Define a custom MSE loss function
+    /// let custom_mse = |preds: &[f64], labels: &[f32]| {
+    ///     let mut grads = Vec::with_capacity(preds.len());
+    ///     let mut hess = Vec::with_capacity(preds.len());
+    ///     for (pred, label) in preds.iter().zip(labels.iter()) {
+    ///         grads.push(2.0 * (*pred as f32 - label));  // gradient
+    ///         hess.push(2.0);                             // hessian
+    ///     }
+    ///     (grads, hess)
+    /// };
+    ///
+    /// let params = json!{{
+    ///     "num_iterations": 10,
+    ///     "learning_rate": 0.1
+    /// }};
+    ///
+    /// let bst = Booster::train_with_custom_objective(dataset, &params, custom_mse).unwrap();
+    /// ```
+    pub fn train_with_custom_objective<F>(
+        dataset: Dataset,
+        parameters: &Value,
+        objective_fn: F,
+    ) -> Result<Self>
+    where
+        F: Fn(&[f64], &[f32]) -> (Vec<f32>, Vec<f32>),
+    {
+        Self::train_with_valid_custom_objective(dataset, None, parameters, objective_fn)
+    }
+
+    /// Trains a new model with a custom objective function and an optional validation dataset.
+    ///
+    /// This method allows you to define your own loss function by providing gradient and Hessian calculations,
+    /// while also benefiting from validation metrics and early stopping.
+    pub fn train_with_valid_custom_objective<F>(
+        dataset: Dataset,
+        valid_dataset: Option<Dataset>,
+        parameters: &Value,
+        objective_fn: F,
+    ) -> Result<Self>
+    where
+        F: Fn(&[f64], &[f32]) -> (Vec<f32>, Vec<f32>),
+    {
+        let num_iterations: i64 = parameters["num_iterations"].as_i64().unwrap_or(100);
+        let early_stopping_rounds: Option<i64> = parameters["early_stopping_rounds"].as_i64();
+
+        // Build parameters string, ensuring objective is set to "none"
+        let mut params_obj = parameters.as_object().unwrap().clone();
+        params_obj.insert(
+            "objective".to_string(),
+            serde_json::Value::String("none".to_string()),
+        );
+
+        let params_string = params_obj
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let params_cstring = CString::new(params_string).unwrap();
+
+        // Create booster
+        let mut handle = std::ptr::null_mut();
+        lgbm_call!(lightgbm3_sys::LGBM_BoosterCreate(
+            dataset.handle,
+            params_cstring.as_ptr(),
+            &mut handle
+        ))?;
+
+        if let Some(ref valid) = valid_dataset {
+            lgbm_call!(lightgbm3_sys::LGBM_BoosterAddValidData(
+                handle,
+                valid.handle
+            ))?;
+        }
+
+        // Get booster info
+        let mut n_classes: i32 = 0;
+        lgbm_call!(lightgbm3_sys::LGBM_BoosterGetNumClasses(
+            handle,
+            &mut n_classes
+        ))?;
+        let num_class = n_classes as usize;
+
+        // Get dataset info
+        let (n_rows, _) = dataset.size()?;
+        let mut labels_ptr: *const c_void = std::ptr::null();
+        let mut labels_len: i32 = 0;
+        let mut labels_type: i32 = 0;
+        let label_str = CString::new("label").unwrap();
+
+        lgbm_call!(lightgbm3_sys::LGBM_DatasetGetField(
+            dataset.handle,
+            label_str.as_ptr(),
+            &mut labels_len,
+            &mut labels_ptr,
+            &mut labels_type
+        ))?;
+
+        let labels =
+            unsafe { std::slice::from_raw_parts(labels_ptr as *const f32, labels_len as usize) };
+
+        // Training loop with custom objective
+        let mut is_finished: i32 = 0;
+        let mut best_score: Option<f64> = None;
+        let mut rounds_without_improvement: i64 = 0;
+        let has_valid = valid_dataset.is_some();
+        let do_early_stopping = has_valid && early_stopping_rounds.is_some();
+
+        for iter in 0..num_iterations {
+            // Get current predictions
+            let mut out_len: i64 = 0;
+            let mut predictions = vec![0.0f64; n_rows as usize * num_class];
+            lgbm_call!(lightgbm3_sys::LGBM_BoosterGetPredict(
+                handle,
+                0, // data_idx: 0 for training data
+                &mut out_len,
+                predictions.as_mut_ptr()
+            ))?;
+
+            // Calculate gradients and hessians using custom objective
+            let (grads, hess) = objective_fn(&predictions, labels);
+
+            if grads.len() != n_rows as usize * num_class
+                || hess.len() != n_rows as usize * num_class
+            {
+                return Err(Error::new(format!(
+                    "Custom objective function must return gradients and hessians with length {}, got {} and {}",
+                    n_rows as usize * num_class, grads.len(), hess.len()
+                )));
+            }
+
+            // Update model with custom gradients and hessians
+            lgbm_call!(lightgbm3_sys::LGBM_BoosterUpdateOneIterCustom(
+                handle,
+                grads.as_ptr(),
+                hess.as_ptr(),
+                &mut is_finished
+            ))?;
+
+            if is_finished != 0 {
+                break;
+            }
+
+            if do_early_stopping {
+                let early_stop_rounds = early_stopping_rounds.unwrap();
+                let eval_results = Self::get_eval_at(handle, 1)?; // 1 for the first validation set
+                if let Some(&current_score) = eval_results.first() {
+                    let improved = match best_score {
+                        None => true,
+                        Some(best) => Self::is_score_better(current_score, best, parameters),
+                    };
+
+                    if improved {
+                        best_score = Some(current_score);
+                        rounds_without_improvement = 0;
+                    } else {
+                        rounds_without_improvement += 1;
+                        if rounds_without_improvement >= early_stop_rounds {
+                            let rollback_iters = early_stop_rounds.min(iter + 1);
+                            for _ in 0..rollback_iters {
+                                lgbm_call!(lightgbm3_sys::LGBM_BoosterRollbackOneIter(handle))?;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        Booster::new(handle)
+    }
+
     fn is_score_better(current: f64, best: f64, parameters: &Value) -> bool {
         let metric = parameters["metric"].as_str().unwrap_or("binary_logloss");
         let higher_is_better = matches!(
