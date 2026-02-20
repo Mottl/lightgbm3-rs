@@ -30,12 +30,14 @@ pub trait DType: private::Sealed {
 }
 
 impl DType for f32 {
+    #[inline(always)]
     fn get_c_api_dtype() -> i32 {
         C_API_DTYPE_FLOAT32 as i32
     }
 }
 
 impl DType for f64 {
+    #[inline(always)]
     fn get_c_api_dtype() -> i32 {
         C_API_DTYPE_FLOAT64 as i32
     }
@@ -197,7 +199,7 @@ impl Dataset {
         if n_features <= 0 {
             return Err(Error::new("number of features should be greater than 0"));
         }
-        if flat_x.len() % n_features as usize != 0 {
+        if !flat_x.len().is_multiple_of(n_features as usize) {
             return Err(Error::new(
                 "number of features doesn't correspond to slice size",
             ));
