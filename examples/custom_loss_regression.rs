@@ -53,7 +53,12 @@ fn calculate_metrics(y_true: &[f32], y_pred: &[f64]) -> (f32, f32, f32) {
         .map(|(&y, &y_pred)| (y - y_pred as f32).powi(2))
         .sum::<f32>()
         / n;
-    let r2 = 1.0f32 - var_model / var;
+    // var == 0 means all labels are identical; R² is undefined in that case
+    let r2 = if var == 0.0 {
+        f32::NAN
+    } else {
+        1.0 - var_model / var
+    };
 
     (mse, mae, r2)
 }
@@ -65,22 +70,17 @@ fn calculate_metrics(y_true: &[f32], y_pred: &[f64]) -> (f32, f32, f32) {
 ///
 /// Gradient: tanh(pred - actual)
 /// Hessian: 1 - tanh²(pred - actual) = sech²(pred - actual)
-fn log_cosh_objective(predictions: &[f64], labels: &[f32]) -> (Vec<f32>, Vec<f32>) {
-    let mut grads = Vec::with_capacity(predictions.len());
-    let mut hess = Vec::with_capacity(predictions.len());
-
-    for (&pred, &label) in predictions.iter().zip(labels.iter()) {
-        let error = pred as f32 - label;
+fn log_cosh_objective(predictions: &[f64], labels: &[f32], grads: &mut [f32], hess: &mut [f32]) {
+    for i in 0..predictions.len() {
+        let error = predictions[i] as f32 - labels[i];
         let tanh_error = error.tanh();
 
         // Gradient: tanh(error)
-        grads.push(tanh_error);
+        grads[i] = tanh_error;
 
         // Hessian: sech²(error) = 1 - tanh²(error)
-        hess.push(1.0 - tanh_error * tanh_error);
+        hess[i] = 1.0 - tanh_error * tanh_error;
     }
-
-    (grads, hess)
 }
 
 /// Custom MSE Loss (for verification)
@@ -88,21 +88,16 @@ fn log_cosh_objective(predictions: &[f64], labels: &[f32]) -> (Vec<f32>, Vec<f32
 /// Loss: (pred - actual)²
 /// Gradient: 2 * (pred - actual)
 /// Hessian: 2
-fn custom_mse_objective(predictions: &[f64], labels: &[f32]) -> (Vec<f32>, Vec<f32>) {
-    let mut grads = Vec::with_capacity(predictions.len());
-    let mut hess = Vec::with_capacity(predictions.len());
-
-    for (&pred, &label) in predictions.iter().zip(labels.iter()) {
-        let error = pred as f32 - label;
+fn custom_mse_objective(predictions: &[f64], labels: &[f32], grads: &mut [f32], hess: &mut [f32]) {
+    for i in 0..predictions.len() {
+        let error = predictions[i] as f32 - labels[i];
 
         // Gradient: 2 * error
-        grads.push(2.0 * error);
+        grads[i] = 2.0 * error;
 
         // Hessian: 2
-        hess.push(2.0);
+        hess[i] = 2.0;
     }
-
-    (grads, hess)
 }
 
 /// Pseudo-Huber Loss
@@ -112,23 +107,24 @@ fn custom_mse_objective(predictions: &[f64], labels: &[f32]) -> (Vec<f32>, Vec<f
 ///
 /// Gradient: error / sqrt(1 + (error/δ)²)
 /// Hessian: 1 / (1 + (error/δ)²)^(3/2)
-fn pseudo_huber_objective(predictions: &[f64], labels: &[f32], delta: f32) -> (Vec<f32>, Vec<f32>) {
-    let mut grads = Vec::with_capacity(predictions.len());
-    let mut hess = Vec::with_capacity(predictions.len());
-
-    for (&pred, &label) in predictions.iter().zip(labels.iter()) {
-        let error = pred as f32 - label;
+fn pseudo_huber_objective(
+    predictions: &[f64],
+    labels: &[f32],
+    grads: &mut [f32],
+    hess: &mut [f32],
+    delta: f32,
+) {
+    for i in 0..predictions.len() {
+        let error = predictions[i] as f32 - labels[i];
         let scaled_error = error / delta;
         let sqrt_term = (1.0 + scaled_error * scaled_error).sqrt();
 
         // Gradient: error / sqrt(1 + (error/δ)²)
-        grads.push(error / sqrt_term);
+        grads[i] = error / sqrt_term;
 
         // Hessian: 1 / (1 + (error/δ)²)^(3/2)
-        hess.push(1.0 / (sqrt_term * sqrt_term * sqrt_term));
+        hess[i] = 1.0 / (sqrt_term * sqrt_term * sqrt_term);
     }
-
-    (grads, hess)
 }
 
 fn main() -> std::io::Result<()> {
@@ -208,11 +204,12 @@ fn main() -> std::io::Result<()> {
 
     let delta = 1.0;
     let train_dataset3 = Dataset::from_slice(&train_xs, &train_ys, n_features, true).unwrap();
-    let pseudo_huber_booster =
-        Booster::train_with_custom_objective(train_dataset3, &params, |preds, labels| {
-            pseudo_huber_objective(preds, labels, delta)
-        })
-        .unwrap();
+    let pseudo_huber_booster = Booster::train_with_custom_objective(
+        train_dataset3,
+        &params,
+        |preds, labels, grads, hess| pseudo_huber_objective(preds, labels, grads, hess, delta),
+    )
+    .unwrap();
 
     let pseudo_huber_pred = pseudo_huber_booster
         .predict(&test_xs, n_features, true)
@@ -269,7 +266,6 @@ fn main() -> std::io::Result<()> {
         {
             "num_iterations": 100,
             "early_stopping_rounds": 10,
-            "metric": "l2",
             "learning_rate": 0.05,
             "num_leaves": 31,
             "verbose": -1

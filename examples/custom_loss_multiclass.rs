@@ -36,17 +36,19 @@ fn load_file(file_path: &str) -> (Vec<f64>, Vec<f32>, i32) {
 fn custom_softmax_objective(
     predictions: &[f64],
     labels: &[f32],
+    grads: &mut [f32],
+    hess: &mut [f32],
     n_classes: usize,
-) -> (Vec<f32>, Vec<f32>) {
+) {
     let n_rows = labels.len();
-    let mut grads = vec![0.0f32; n_rows * n_classes];
-    let mut hess = vec![0.0f32; n_rows * n_classes];
     let factor = n_classes as f32 / (n_classes as f32 - 1.0);
 
+    let mut row_preds = vec![0.0f64; n_classes];
+    let mut probas = vec![0.0f64; n_classes];
+
     for i in 0..n_rows {
-        // LightGBM predictions for training data (from GetPredict) are usually class-major for multi-class:
+        // LightGBM predictions for training data (from GetPredict) are class-major for multi-class:
         // [c0_r0, c0_r1, ..., c1_r0, c1_r1, ...]
-        let mut row_preds = vec![0.0; n_classes];
         for k in 0..n_classes {
             row_preds[k] = predictions[k * n_rows + i];
         }
@@ -56,7 +58,6 @@ fn custom_softmax_objective(
         // 1. Compute Softmax probabilities
         // To avoid numerical overflow, subtract max(row_preds)
         let max_pred = row_preds.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-        let mut probas = vec![0.0f64; n_classes];
         let mut sum_exp = 0.0;
         for k in 0..n_classes {
             probas[k] = (row_preds[k] - max_pred).exp();
@@ -79,8 +80,6 @@ fn custom_softmax_objective(
             hess[k * n_rows + i] = factor * p_ik * (1.0 - p_ik);
         }
     }
-
-    (grads, hess)
 }
 
 fn main() -> std::io::Result<()> {
@@ -108,9 +107,13 @@ fn main() -> std::io::Result<()> {
     println!("Training with custom Multi-class Softmax objective...");
 
     // Train using custom objective
-    let booster = Booster::train_with_custom_objective(train_dataset, &params, |preds, labels| {
-        custom_softmax_objective(preds, labels, n_classes)
-    })
+    let booster = Booster::train_with_custom_objective(
+        train_dataset,
+        &params,
+        |preds, labels, grads, hess| {
+            custom_softmax_objective(preds, labels, grads, hess, n_classes)
+        },
+    )
     .unwrap();
 
     // Predict probabilities

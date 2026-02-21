@@ -307,7 +307,8 @@ impl Booster {
     /// Trains a new model with a custom objective function.
     ///
     /// This method allows you to define your own loss function by providing gradient and Hessian calculations.
-    /// The `objective_fn` takes current predictions and true labels, and returns (gradients, hessians).
+    /// The `objective_fn` takes current predictions, true labels, and writes gradients and hessians into the
+    /// provided mutable slices (pre-allocated by the caller for zero per-iteration allocation).
     ///
     /// # Example
     /// ```no_run
@@ -319,14 +320,11 @@ impl Booster {
     /// let dataset = Dataset::from_slice(&xs, &labels, 2, true).unwrap();
     ///
     /// // Define a custom MSE loss function
-    /// let custom_mse = |preds: &[f64], labels: &[f32]| {
-    ///     let mut grads = Vec::with_capacity(preds.len());
-    ///     let mut hess = Vec::with_capacity(preds.len());
-    ///     for (pred, label) in preds.iter().zip(labels.iter()) {
-    ///         grads.push(2.0 * (*pred as f32 - label));  // gradient
-    ///         hess.push(2.0);                             // hessian
+    /// let mut custom_mse = |preds: &[f64], labels: &[f32], grads: &mut [f32], hess: &mut [f32]| {
+    ///     for i in 0..preds.len() {
+    ///         grads[i] = 2.0 * (preds[i] as f32 - labels[i]);  // gradient
+    ///         hess[i] = 2.0;                                   // hessian
     ///     }
-    ///     (grads, hess)
     /// };
     ///
     /// let params = json!{{
@@ -342,7 +340,7 @@ impl Booster {
         objective_fn: F,
     ) -> Result<Self>
     where
-        F: Fn(&[f64], &[f32]) -> (Vec<f32>, Vec<f32>),
+        F: FnMut(&[f64], &[f32], &mut [f32], &mut [f32]),
     {
         Self::train_with_valid_custom_objective(dataset, None, parameters, objective_fn)
     }
@@ -355,10 +353,10 @@ impl Booster {
         dataset: Dataset,
         valid_dataset: Option<Dataset>,
         parameters: &Value,
-        objective_fn: F,
+        mut objective_fn: F,
     ) -> Result<Self>
     where
-        F: Fn(&[f64], &[f32]) -> (Vec<f32>, Vec<f32>),
+        F: FnMut(&[f64], &[f32], &mut [f32], &mut [f32]),
     {
         let num_iterations: i64 = parameters["num_iterations"].as_i64().unwrap_or(100);
         let early_stopping_rounds: Option<i64> = parameters["early_stopping_rounds"].as_i64();
@@ -425,10 +423,13 @@ impl Booster {
         let has_valid = valid_dataset.is_some();
         let do_early_stopping = has_valid && early_stopping_rounds.is_some();
 
+        let mut predictions = vec![0.0f64; n_rows as usize * num_class];
+        let mut grads = vec![0.0f32; n_rows as usize * num_class];
+        let mut hess = vec![0.0f32; n_rows as usize * num_class];
+
         for iter in 0..num_iterations {
             // Get current predictions
             let mut out_len: i64 = 0;
-            let mut predictions = vec![0.0f64; n_rows as usize * num_class];
             lgbm_call!(lightgbm3_sys::LGBM_BoosterGetPredict(
                 handle,
                 0, // data_idx: 0 for training data
@@ -436,17 +437,16 @@ impl Booster {
                 predictions.as_mut_ptr()
             ))?;
 
-            // Calculate gradients and hessians using custom objective
-            let (grads, hess) = objective_fn(&predictions, labels);
-
-            if grads.len() != n_rows as usize * num_class
-                || hess.len() != n_rows as usize * num_class
-            {
+            let expected_len = n_rows as i64 * num_class as i64;
+            if out_len != expected_len {
                 return Err(Error::new(format!(
-                    "Custom objective function must return gradients and hessians with length {}, got {} and {}",
-                    n_rows as usize * num_class, grads.len(), hess.len()
+                    "LGBM_BoosterGetPredict returned {} predictions, expected {} (n_rows={}, num_class={})",
+                    out_len, expected_len, n_rows, num_class
                 )));
             }
+
+            // Calculate gradients and hessians using custom objective
+            objective_fn(&predictions, labels, &mut grads, &mut hess);
 
             // Update model with custom gradients and hessians
             lgbm_call!(lightgbm3_sys::LGBM_BoosterUpdateOneIterCustom(
