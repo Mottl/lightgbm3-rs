@@ -547,7 +547,7 @@ impl Booster {
                         self.n_features)
             ));
         }
-        if flat_x.len() % n_features as usize != 0 {
+        if !flat_x.len().is_multiple_of(n_features as usize) {
             return Err(Error::new(format!(
                 "Invalid length of data: data.len()={}, n_features={}",
                 flat_x.len(),
