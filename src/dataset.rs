@@ -127,20 +127,21 @@ impl Dataset {
         ))?;
 
         // 4. Convert C strings to Rust Strings
-        let mut result = Vec::with_capacity(num_features_out as usize);
-        for i in 0..num_features_out as usize {
-            // Create CStr from pointer
-            let c_str = unsafe { std::ffi::CStr::from_ptr(name_ptrs[i]) };
-            // Convert to Rust String (handle UTF-8)
-            let str_slice = c_str.to_str().map_err(|e| {
-                Error::new(format!(
-                    "Invalid UTF-8 in feature name at index {}: {}",
-                    i, e
-                ))
-            })?;
-            result.push(str_slice.to_string());
-        }
-
+        let result = name_ptrs
+            .iter()
+            .copied()
+            .take(num_features_out as usize)
+            .enumerate()
+            .map(|(i, ptr)| {
+                let c_str = unsafe { std::ffi::CStr::from_ptr(ptr) };
+                c_str.to_str().map(|s| s.to_string()).map_err(|e| {
+                    Error::new(format!(
+                        "Invalid UTF-8 in feature name at index {}: {}",
+                        i, e
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         Ok(result)
     }
 
