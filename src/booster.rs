@@ -412,6 +412,9 @@ impl Booster {
             &mut labels_ptr,
             &mut labels_type
         ))?;
+        if labels_type != f32::get_c_api_dtype() {
+            return Err(Error::new("X values should have f32 type"));
+        }
 
         let labels =
             unsafe { std::slice::from_raw_parts(labels_ptr as *const f32, labels_len as usize) };
