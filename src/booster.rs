@@ -871,6 +871,11 @@ impl Drop for Booster {
     }
 }
 
+// SAFETY: BoosterHandle and FastConfigHandle are Send in the rust sense. BoosterHandle is also
+// sync in the rust sense, however since FastConfigHandle isn't we can't impl `Sync` for the
+// struct.
+unsafe impl Send for Booster {}
+
 impl From<ImportanceType> for i32 {
     fn from(value: ImportanceType) -> Self {
         match value {
