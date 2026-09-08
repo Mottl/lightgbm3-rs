@@ -1,6 +1,6 @@
 [package]
 name = "lightgbm3"
-version = "1.0.10"
+version = "1.0.11"
 edition = "2021"
 authors = [
   "Dmitry Mottl <dmitry.mottl@gmail.com>",
@@ -35,6 +35,6 @@ path = "benches/regression.rs"
 harness = false
 
 [dev-dependencies]
-rand = "0.9"
-rand_distr = "0.5"
+rand = "0.10"
+rand_distr = "0.6"
 csv = "1.3"

@@ -1,6 +1,6 @@
 [package]
 name = "lightgbm3-sys"
-version = "1.0.8"
+version = "1.0.11"
 edition = "2021"
 authors = ["Dmitry Mottl <dmitry.mottl@gmail.com>", "vaaaaanquish <6syun9@gmail.com>"]
 build = "build.rs"
@@ -9,14 +9,22 @@ repository = "https://github.com/Mottl/lightgbm3-rs"
 description = "Low-level Rust bindings for LightGBM library"
 categories = ["external-ffi-bindings"]
 readme = "README.md"
-exclude = ["README.md", ".gitlab-ci.yml", ".hgeol", ".gitignore", ".appveyor.yml", ".coveralls.yml", ".travis.yml", ".github", ".gitmodules", ".nuget", "**/*.md", "lightgbm/compute/doc", "lightgbm/compute/example", "lightgbm/compute/index.html", "lightgbm/compute/perf", "lightgbm/compute/test", "lightgbm/eigen/debug", "lightgbm/eigen/demos", "lightgbm/eigen/doc", "lightgbm/eigen/failtest", "lightgbm/eigen/test", "lightgbm/examples", "lightgbm/external_libs/fast_double_parser/benchmarks", "lightgbm/external_libs/fmt/doc", "lightgbm/external_libs/fmt/test"]
+exclude = [
+  "README.md", ".ci", ".gitlab-ci.yml", ".hgeol", ".gitignore", ".appveyor.yml", ".coveralls.yml", ".travis.yml", ".github", ".gitmodules", ".nuget", "**/*.md", "docker",
+  "lightgbm/examples", "lightgbm/docs", "lightgbm/tests", "lightgbm/R-package", "lightgbm/python-package", "lightgbm/build-python.sh", "lightgbm/build-cran-package.sh", "lightgbm/build_r.R",
+  "lightgbm/external_libs/compute/doc", "lightgbm/external_libs/compute/example", "lightgbm/external_libs/compute/index.html", "lightgbm/external_libs/compute/perf", "lightgbm/external_libs/compute/test",
+  "lightgbm/external_libs/eigen/debug", "lightgbm/external_libs/eigen/demos", "lightgbm/external_libs/eigen/doc", "lightgbm/external_libs/eigen/failtest", "lightgbm/external_libs/eigen/test", "lightgbm/external_libs/eigen/bench", "lightgbm/external_libs/eigen/ci", "lightgbm/external_libs/eigen/blas/testing",
+  "lightgbm/external_libs/fast_double_parser/benchmarks", "lightgbm/external_libs/fast_double_parser/tests",
+  "lightgbm/external_libs/fmt/doc", "lightgbm/external_libs/fmt/test", "lightgbm/external_libs/fmt/support",
+  "lightgbm/external_libs/nanoarrow/docs", "lightgbm/external_libs/nanoarrow/dev", "lightgbm/external_libs/nanoarrow/examples", "lightgbm/external_libs/nanoarrow/python", "lightgbm/external_libs/nanoarrow/r",
+]
 
 [dependencies]
 libc = "0.2"
 
 [build-dependencies]
 cmake = "0.1"
-bindgen = "0.71"
+bindgen = "0.73"
 doxygen-rs = "0.4"
 
 [features]
