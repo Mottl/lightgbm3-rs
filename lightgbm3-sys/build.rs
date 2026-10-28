@@ -100,6 +100,16 @@ fn main() {
     println!("cargo:rustc-link-search={}", out_path.join("lib").display());
     println!("cargo:rustc-link-search=native={}", dst.display());
     if target.contains("windows") {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            out_path
+                .join("build")
+                .join("external_libs")
+                .join("nanoarrow")
+                .join("Release")
+                .display()
+        );
+        println!("cargo:rustc-link-lib=static=nanoarrow_static");
         println!("cargo:rustc-link-lib=static=lib_lightgbm");
     } else {
         println!("cargo:rustc-link-lib=static=_lightgbm");
