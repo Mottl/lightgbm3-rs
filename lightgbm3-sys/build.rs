@@ -77,7 +77,7 @@ fn main() {
     // link to appropriate C++ lib
     if target.contains("apple") {
         println!("cargo:rustc-link-lib=c++");
-    } else if target.contains("linux") {
+    } else if target.contains("linux") || target.contains("netbsd") {
         println!("cargo:rustc-link-lib=stdc++");
     }
     #[cfg(feature = "openmp")]
